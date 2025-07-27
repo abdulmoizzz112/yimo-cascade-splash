@@ -185,7 +185,7 @@ const YimoPlayground: React.FC = () => {
           onClick={() => handleYimoClick(yimo)}
           className="animate-bounce-in"
         >
-          <Yimo {...yimo} />
+          <Yimo {...yimo} isHeartMode={yimos.length >= 50} />
         </div>
       ))}
 
