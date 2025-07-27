@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Yimo from './Yimo';
+import { ChallengeModal } from './challenges/ChallengeModal';
+import { ChallengeProgress } from './challenges/ChallengeProgress';
+import { Challenge, UserProgress, ChallengeProgress as ChallengeProgressType } from '@/types/challenges';
+import { getRandomChallenge } from '@/utils/challengeData';
+import { useToast } from '@/components/ui/use-toast';
 
 interface YimoData {
   id: string;
@@ -12,10 +17,20 @@ interface YimoData {
 }
 
 const YimoPlayground: React.FC = () => {
+  const { toast } = useToast();
   const [yimos, setYimos] = useState<YimoData[]>([]);
   const [isActive, setIsActive] = useState(false);
   const animationRef = useRef<number>();
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Challenge state
+  const [currentChallenge, setCurrentChallenge] = useState<Challenge | null>(null);
+  const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
+  const [userProgress, setUserProgress] = useState<UserProgress>({
+    totalChallengesCompleted: 0,
+    streakDays: 0,
+    completedChallenges: []
+  });
 
   const createYimo = useCallback((x?: number, y?: number): YimoData => {
     const colors = ['pink', 'blue', 'green', 'purple', 'orange', 'yellow'];
@@ -109,6 +124,72 @@ const YimoPlayground: React.FC = () => {
     }
   };
 
+  // Challenge functions
+  const startChallenge = useCallback(() => {
+    const challenge = getRandomChallenge();
+    setCurrentChallenge(challenge);
+    setIsChallengeModalOpen(true);
+  }, []);
+
+  const completeChallenge = useCallback((response: string) => {
+    if (!currentChallenge) return;
+
+    // Spawn yimos based on challenge reward
+    const newYimos: YimoData[] = [];
+    for (let i = 0; i < currentChallenge.yimoReward; i++) {
+      newYimos.push(createYimo());
+    }
+    setYimos(prev => [...prev, ...newYimos]);
+
+    // Update user progress
+    const newProgress = { ...userProgress };
+    newProgress.totalChallengesCompleted += 1;
+    newProgress.lastCompletedDate = new Date();
+    
+    // Check if it's a new day for streak calculation
+    const today = new Date().toDateString();
+    const lastCompletedDay = userProgress.lastCompletedDate?.toDateString();
+    
+    if (lastCompletedDay !== today) {
+      if (lastCompletedDay === new Date(Date.now() - 86400000).toDateString()) {
+        // Yesterday - continue streak
+        newProgress.streakDays += 1;
+      } else {
+        // Not yesterday - start new streak
+        newProgress.streakDays = 1;
+      }
+    }
+
+    newProgress.completedChallenges.push({
+      challengeId: currentChallenge.id,
+      completed: true,
+      completedAt: new Date(),
+      userResponse: response
+    });
+
+    setUserProgress(newProgress);
+    setIsChallengeModalOpen(false);
+    setCurrentChallenge(null);
+
+    // Show success toast
+    toast({
+      title: "Challenge Completed! 🎉",
+      description: `You earned ${currentChallenge.yimoReward} new Yimo${currentChallenge.yimoReward > 1 ? 's' : ''}!`,
+      duration: 3000,
+    });
+  }, [currentChallenge, userProgress, createYimo, toast]);
+
+  const skipChallenge = useCallback(() => {
+    setIsChallengeModalOpen(false);
+    setCurrentChallenge(null);
+    
+    toast({
+      title: "Challenge Skipped",
+      description: "You can start a new challenge anytime!",
+      duration: 2000,
+    });
+  }, [toast]);
+
   const handleYimoClick = (clickedYimo: YimoData) => {
     // Create a burst of new yimos around the clicked one
     const burstCount = 3;
@@ -155,7 +236,7 @@ const YimoPlayground: React.FC = () => {
           <p className="text-muted-foreground text-sm mb-4">
             Watch yimos multiply when they hit screen edges!
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-3">
             {!isActive ? (
               <button
                 onClick={spawnInitialYimo}
@@ -172,10 +253,27 @@ const YimoPlayground: React.FC = () => {
               </button>
             )}
           </div>
-          <div className="mt-2 text-xs text-muted-foreground">
+          
+          {/* Mental Health Challenge Button */}
+          <div className="mb-3">
+            <button
+              onClick={startChallenge}
+              disabled={isChallengeModalOpen}
+              className="w-full px-4 py-2 bg-gradient-cosmic text-white rounded-lg hover:opacity-90 transition-all animate-pulse-glow disabled:opacity-50"
+            >
+              🧠 Start Wellness Challenge
+            </button>
+          </div>
+          
+          <div className="text-xs text-muted-foreground">
             Yimos active: <span className="font-bold text-foreground">{yimos.length}</span>
           </div>
         </div>
+
+        {/* Progress Display */}
+        {userProgress.totalChallengesCompleted > 0 && (
+          <ChallengeProgress userProgress={userProgress} />
+        )}
       </div>
 
       {/* Yimos */}
@@ -203,6 +301,15 @@ const YimoPlayground: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Challenge Modal */}
+      <ChallengeModal
+        challenge={currentChallenge}
+        isOpen={isChallengeModalOpen}
+        onComplete={completeChallenge}
+        onSkip={skipChallenge}
+        onClose={() => setIsChallengeModalOpen(false)}
+      />
     </div>
   );
 };
