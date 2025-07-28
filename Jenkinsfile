@@ -10,7 +10,8 @@ pipeline {
         stage('Clone Repository') {
             steps {
                 // Clone the repository
-                git url: "${GIT_URL}"
+                git url: 'https://github.com/abdulmoizzz112/yimo-cascade-splash.git', branch: 'main'
+
             }
         }
 
