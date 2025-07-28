@@ -6,10 +6,24 @@ pipeline {
     }
 
     stages {
+        stage('Check Environment') {
+            steps {
+                sh 'node -v'
+                sh 'npm -v'
+                sh 'which npm'
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
                 dir("${PROJECT_NAME}") {
-                    sh 'npm install'
+                    sh '''
+                        echo "Cleaning npm cache..."
+                        npm cache clean --force
+
+                        echo "Installing dependencies..."
+                        HUSKY=0 npm install --no-optional
+                    '''
                 }
             }
         }
